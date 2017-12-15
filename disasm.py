@@ -47,6 +47,35 @@ def get_new_bank(chunk):
     return '\n~~Warning: Could not resolve new bank address!~~'
 
 
+def get_hl_mod(chunk):
+    ops = chunk.split('\n')[1:][::-1]
+    hval = None
+    lval = None
+
+    for op in ops:
+        hl = LOAD_HL.search(op)
+        h = LOAD_H.search(op)
+        l = LOAD_L.search(op)
+
+        if hl is not None:
+            return int(hl.group(1), 16)
+
+        elif h is not None and hval is not None:
+            hval = int(h.group(1), 16)
+
+            if lval is not None:
+                return (hval << 8) | lval
+
+        elif l is not None and lval is not None:
+            lval = int(l.group(1), 16)
+
+            if hval is not None:
+                return (hval << 8) | lval
+
+    return '\nCould not resolve HL value!'
+
+
+
 def get_next_addr(pc, data, bank):
     if op_len[get_byte(pc, data, bank)] == 2:
         return get_byte(pc + 1, data, bank)
@@ -135,6 +164,9 @@ def get_chunk(pc, data, stack, bank, stack_balance):
                     next_addr, stack_balance = stack[-1]
                     stack.pop()
 
+            if opcode == 0xE9:
+                next_addr = get_hl_mod(chunk)
+
         else:
             pc += op_len[opcode]
 
@@ -149,7 +181,7 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
     MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
     while depth < MAX_DEPTH:
-        if pc > 0x4000 and isinstance(bank, str):
+        if pc >= 0x4000 and isinstance(bank, str):
             print('Error: bank changed in runtime!')
             break
 
