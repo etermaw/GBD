@@ -36,9 +36,9 @@ def decode(byte1, byte2):
 
 
 def get_new_bank(chunk):
-    opcodes = chunk.split('\n')[1:][::-1]
+    ops = chunk.split('\n')[1:][::-1]
 
-    for op in opcodes:
+    for op in ops:
         result = LOAD_BANK_NUM.search(op)
 
         if result is not None:
@@ -144,35 +144,36 @@ def get_chunk(pc, data, stack, bank, stack_balance):
     return chunk, next_addr, bank, stack_balance
 
 
-current_pc = int(sys.argv[2], 16)
-depth = 0
-MAX_DEPTH = int(sys.argv[3])
-data = []
-stack = []
-current_bank = 1
-stack_balance = 0
+def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_depth = None):
+    depth = 0
+    MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
-with open(sys.argv[1], 'rb') as f:
-    data = f.read()
+    while depth < MAX_DEPTH:
+        if pc > 0x4000 and isinstance(bank, str):
+            print('Error: bank changed in runtime!')
+            break
 
-while depth < MAX_DEPTH:
-    if current_pc > 0x4000 and isinstance(current_bank, str):
-        print('Error: bank changed in runtime!')
-        break
+        root, pc, bank, local_stack_balance = get_chunk(pc, data, local_stack, bank, local_stack_balance)
+        root += '\n\n'
+        depth += 1
 
-    root, current_pc, current_bank, stack_balance = get_chunk(current_pc, data, stack, current_bank, stack_balance)
-    root += '\n\n'
-    depth += 1
+        if isinstance(pc, str):
+            root += pc + '\n'
+            print(root)
+            break
 
-    if isinstance(current_pc, str):
-        root += current_pc + '\n'
+        elif pc >= 0x8000:
+            # root += 'Dynamic Execution: program go out of ROM!\n'
+            # print(root)
+            # break
+            pc -= 0x8000
+
         print(root)
-        break
 
-    elif current_pc >= 0x8000:
-        # root += 'Dynamic Execution: program go out of ROM!\n'
-        # print(root)
-        # break
-        current_pc -= 0x8000
 
-    print(root)
+binary = []
+
+with open(sys.argv[1], 'rb') as file:
+    binary = file.read()
+
+follow_path(binary, int(sys.argv[2], 16), 1, max_depth=int(sys.argv[3]))
