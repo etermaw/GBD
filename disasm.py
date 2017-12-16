@@ -15,6 +15,8 @@ LOAD_L = re.compile('LD L,(0x[\dA-F]{1,2})')
 PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
 POP_FAMILY = (0xC1, 0xD1, 0xE1, 0xF1)
 RST_FAMILY = (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
+CALL_FAMILY = (0xCD,) + RST_FAMILY
+JUMP_FAMILY = (0x18, 0xC3, 0xCD)
 
 # opcodes that ends chunk
 #          JR     JP   RET  CALL  RETI  JP(HL) RST
@@ -137,21 +139,21 @@ def get_chunk(pc, data, stack, bank, stack_balance):
         if opcode in end_op:
             ending = True
 
-            if opcode in (0xC3, 0xCD):
+            if opcode in JUMP_FAMILY:
                 next_addr = get_next_addr(pc, data, bank)
 
-            if opcode == 0x18:
-                ret = get_next_addr(pc, data, bank)
+                if opcode == 0x18:
+                    ret = next_addr
 
-                if ret > 127:
-                    ret = -(256 - ret)
+                    if ret > 127:
+                        ret = -(256 - ret)
 
-                next_addr = pc + ret + op_len[opcode]
+                    next_addr = pc + ret + op_len[opcode]
 
             if opcode in RST_FAMILY:
                 next_addr = ((opcode >> 3) & 7) * 0x8
 
-            if opcode in (0xCD, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF):
+            if opcode in CALL_FAMILY:
                 stack.append((pc + op_len[opcode], stack_balance))
                 stack_balance = 0
 
