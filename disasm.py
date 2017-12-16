@@ -11,6 +11,11 @@ LOAD_HL = re.compile('LD HL,\((0x[\dA-F]{1,4})\)')
 LOAD_H = re.compile('LD H,(0x[\dA-F]{1,2})')
 LOAD_L = re.compile('LD L,(0x[\dA-F]{1,2})')
 
+# opcode families
+PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
+POP_FAMILY = (0xC1, 0xD1, 0xE1, 0xF1)
+RST_FAMILY = (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
+
 # opcodes that ends chunk
 #          JR     JP   RET  CALL  RETI  JP(HL) RST
 end_op = (0x18, 0xC3, 0xC9, 0xCD, 0xD9, 0xE9, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
@@ -18,6 +23,7 @@ end_op = (0x18, 0xC3, 0xC9, 0xCD, 0xD9, 0xE9, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF
 # opcodes that causes split in path
 #          |     JR [COND], r8     |     RET [COND]        |      JP [COND], r16   |    CALL [COND], a16
 split_op = (0x20, 0x28, 0x30, 0x38, 0xC0, 0xC8, 0xD0, 0xD8, 0xC2, 0xCA, 0xD2, 0xDA, 0xC4, 0xCC, 0xD4, 0xDC)
+
 
 def get_byte(pc, data, bank):
     if pc < 0x4000:
@@ -75,7 +81,6 @@ def get_hl_mod(chunk):
     return '\nCould not resolve HL value!'
 
 
-
 def get_next_addr(pc, data, bank):
     if op_len[get_byte(pc, data, bank)] == 2:
         return get_byte(pc + 1, data, bank)
@@ -120,10 +125,10 @@ def get_chunk(pc, data, stack, bank, stack_balance):
 
         chunk += op
 
-        if opcode in (0xC5, 0xD5, 0xE5, 0xF5):
+        if opcode in PUSH_FAMILY:
             stack_balance += 1
 
-        elif opcode in (0xC1, 0xD1, 0xE1, 0xF1):
+        elif opcode in POP_FAMILY:
             stack_balance -= 1
 
         if stack_balance < 0:
@@ -143,7 +148,7 @@ def get_chunk(pc, data, stack, bank, stack_balance):
 
                 next_addr = pc + ret + op_len[opcode]
 
-            if opcode in (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF):
+            if opcode in RST_FAMILY:
                 next_addr = ((opcode >> 3) & 7) * 0x8
 
             if opcode in (0xCD, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF):
