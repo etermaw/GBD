@@ -141,7 +141,10 @@ def get_chunk(pc, data, stack, bank, stack_balance):
         if stack_balance < 0:
             warning = '\n~~Warning: Possible return address manipulation!~~'
 
-        if opcode in end_op:
+        if opcode not in end_op:
+            pc += op_len[opcode]
+
+        else:
             ending = True
 
             if opcode in JUMP_FAMILY:
@@ -178,9 +181,6 @@ def get_chunk(pc, data, stack, bank, stack_balance):
 
             if opcode == 0xE9:
                 next_addr = get_hl_mod(chunk)
-
-        else:
-            pc += op_len[opcode]
 
     chunk += el * '-'
     chunk += warning
