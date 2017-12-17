@@ -36,8 +36,8 @@ def get_new_bank(opcode_list):
     ops = opcode_list[::-1]
 
     for op in ops:
-        if not op[1] and op[2] == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
-            return op[3]
+        if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
+            return op.optional_arg
 
     raise Exception('\n~~ Warning: Could not resolve new bank adress! ~~')
 
@@ -48,17 +48,17 @@ def get_hl_mod(opcode_list):
     lval = None
 
     for op in ops:
-        if not op[1] and op[2] == 0x21:  # if opcode == 'LD HL,(0x0000 ~ 0xFFFF)'
-            return op[3]
+        if op.opcode == 0x21:  # if opcode == 'LD HL,(0x0000 ~ 0xFFFF)'
+            return op.optional_arg
 
-        elif not op[1] and op[2] == 0x26 and hval is not None:  # if opcode == 'LD H,(0x0 ~ 0xFF)'
-            hval = op[3]
+        elif op.opcode == 0x26 and hval is not None:  # if opcode == 'LD H,(0x0 ~ 0xFF)'
+            hval = op.optional_arg
 
             if lval is not None:
                 return (hval << 8) | lval
 
-        elif not op[1] and op[2] == 0x2E and lval is not None:  # if opcode == 'LD L,(0x0 ~ 0xFF)'
-            lval = op[3]
+        elif op.opcode == 0x2E and lval is not None:  # if opcode == 'LD L,(0x0 ~ 0xFF)'
+            lval = op.optional_arg
 
             if hval is not None:
                 return (hval << 8) | lval
@@ -67,24 +67,24 @@ def get_hl_mod(opcode_list):
 
 
 def get_single_op(pc, data, bank):
-    is_extended = False
     opcode = get_byte(pc, data, bank)
     optional_arg = None
+    op_length = 0
 
     if opcode == 0xCB:
-        opcode = get_byte(pc + 1, data, bank)
-        is_extended = True
+        opcode = 0xCB00 + get_byte(pc + 1, data, bank)
+        op_length = 2
 
     else:
-        if op_len[opcode] == 2:
+        op_length = op_len[opcode]
+        
+        if op_length == 2:
             optional_arg = get_byte(pc + 1, data, bank)
 
-        elif op_len[opcode] == 3:
+        elif op_length == 3:
             optional_arg = (get_byte(pc + 2, data, bank) << 8) | get_byte(pc + 1, data, bank)
 
-    # internal opcode representation:
-    # (address, is_extended, opcode, optional_arg)
-    return pc, is_extended, opcode, optional_arg
+    return Opcode(pc, opcode, optional_arg, op_length)
 
 
 def get_chunk(pc, data, bank, stack, stack_balance):
@@ -97,7 +97,7 @@ def get_chunk(pc, data, bank, stack, stack_balance):
         op = get_single_op(pc, data, bank)
 
         # if LD A, (0x2000 ~ 0x3FFF) [change bank command]
-        if not op[1] and op[2] == 0xEA and 0x2000 <= op[3] <= 0x3FFF:
+        if op.opcode == 0xEA and 0x2000 <= op.optional_arg <= 0x3FFF:
             try:
                 new_bank = get_new_bank(chunk_opcodes)
                 bank = new_bank
@@ -107,22 +107,22 @@ def get_chunk(pc, data, bank, stack, stack_balance):
 
         chunk_opcodes.append(op)
 
-        if not op[1] and op[2] in PUSH_FAMILY:
+        if op.opcode in PUSH_FAMILY:
             stack_balance += 1
 
-        elif not op[1] and op[2] in POP_FAMILY:
+        elif op.opcode in POP_FAMILY:
             stack_balance -= 1
 
         if stack_balance < 0:
             warning = '\n~~ Warning: Possible return address manipulation! ~~'
 
-        if not op[1] and op[2] in end_op:
+        if op.opcode in end_op:
             ending = True
 
-            if op[2] in JUMP_FAMILY:
-                next_addr = op[3]
+            if op.opcode in JUMP_FAMILY:
+                next_addr = op.optional_arg
 
-                if op[2] == 0x18:
+                if op.opcode == 0x18:
                     ret = next_addr
 
                     if ret > 127:
@@ -130,15 +130,15 @@ def get_chunk(pc, data, bank, stack, stack_balance):
 
                     next_addr = pc + ret + 2  # JR length is always 2
 
-            if op[2] in RST_FAMILY:
-                next_addr = ((op[2] >> 3) & 7) * 0x8
+            if op.opcode in RST_FAMILY:
+                next_addr = ((op.opcode >> 3) & 7) * 0x8
 
-            if op[2] in CALL_FAMILY:
+            if op.opcode in CALL_FAMILY:
                 # next_addr is handled in JUMP_FAMILY condition
-                stack.append((pc + op_len[op[2]], stack_balance))
+                stack.append((pc + op.opcode_len, stack_balance))
                 stack_balance = 0
 
-            if op[2] in RET_FAMILY:
+            if op.opcode in RET_FAMILY:
                 if len(stack) == 0:
                     next_addr = 'Stack underflow!'
 
@@ -152,17 +152,17 @@ def get_chunk(pc, data, bank, stack, stack_balance):
                     next_addr, stack_balance = stack[-1]
                     stack.pop()
 
-            if op[2] == 0xE9:
+            if op.opcode == 0xE9:
                 next_addr = get_hl_mod(chunk_opcodes)
 
-        pc += op_len[op[2]]
+        pc += op.opcode_len
 
     chunk_end = pc - 1
 
     return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_balance = 0, max_depth = None):
+def follow_path(data, pc, bank, visited_chunks, local_stack=[], local_stack_balance=0, max_depth=None):
     depth = 0
     MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
@@ -171,7 +171,8 @@ def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_ba
             print('Error: bank changed in runtime!')
             break
 
-        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
+        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack,
+                                                                        local_stack_balance)
         depth += 1
 
         if chunk_range.start in visited_chunks:
@@ -195,22 +196,22 @@ def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_ba
 
 def print_opcodes(opcode_list):
     fmt_str = '0x{0:X} {1}'
-    header = '----- CHUNK 0x{0:X} -----'.format(opcode_list[0][0])
+    header = '----- CHUNK 0x{0:X} -----'.format(opcode_list[0].address)
     footer = '-' * len(header) + '\n'
 
     print(header)
 
     for op in opcode_list:
-        if not op[1]:
-            tmp_op = opcodes[op[2]]
+        if op.opcode <= 0xFF:
+            tmp_op = opcodes[op.opcode]
 
-            if op[3] is not None:
-                tmp_op = tmp_op.format(op[3])
+            if op.optional_arg is not None:
+                tmp_op = tmp_op.format(op.optional_arg)
 
-            print(fmt_str.format(op[0], tmp_op))
+            print(fmt_str.format(op.opcode, tmp_op))
 
         else:
-            print(fmt_str.format(op[0], ext_opcodes[op[2]]))
+            print(fmt_str.format(op.address, ext_opcodes[op.opcode - 0xCB00]))
 
     print(footer)
 
