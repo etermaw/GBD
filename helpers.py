@@ -37,3 +37,6 @@ class Opcode:
         self.opcode = opcode
         self.optional_arg = optional_arg
         self.opcode_len = opcode_len
+
+    def __eq__(self, other):
+        return self.address == other
