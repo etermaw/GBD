@@ -1,7 +1,7 @@
 import sys
 import bintrees
 from opcodes import *
-from rang import *
+from helpers import *
 
 # opcode families
 PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
