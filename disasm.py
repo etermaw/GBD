@@ -161,6 +161,7 @@ def get_chunk(pc, data, bank, stack, stack_balance):
                 next_addr = ((opcode >> 3) & 7) * 0x8
 
             if opcode in CALL_FAMILY:
+                # next_addr is handled in JUMP_FAMILY condition
                 stack.append((pc + op_len[opcode], stack_balance))
                 stack_balance = 0
 
