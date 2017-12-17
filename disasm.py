@@ -1,6 +1,6 @@
 import sys
 import re
-import bintrees
+#import bintrees
 from opcodes import *
 from rang import *
 
@@ -59,7 +59,7 @@ def get_new_bank(chunk):
         if result is not None:
             return int(result.group(1), 16)
 
-    return '\n~~Warning: Could not resolve new bank address!~~'
+    raise Exception('\n~~ Warning: Could not resolve new bank adress! ~~')
 
 
 def get_hl_mod(chunk):
@@ -110,7 +110,9 @@ def get_single_op(pc, data, bank):
     return ret
 
 
-def get_chunk(pc, data, stack, bank, stack_balance):
+def get_chunk(pc, data, bank, stack, stack_balance):
+    chunk_start = pc
+
     chunk = '---CHUNK 0x{0:X}---\n'.format(pc)
     el = len(chunk) - 1
     ending = False
@@ -122,15 +124,13 @@ def get_chunk(pc, data, stack, bank, stack_balance):
         op = get_single_op(pc, data, bank) + '\n'
 
         if CHANGE_BANK.search(op):
-            new_bank = get_new_bank(chunk)
+            try:
+                new_bank = get_new_bank(chunk)
+                warning = '\n~~ Bank switch from 0x{0:X} to 0x{1:X} ~~'.format(bank, new_bank)
+                bank = new_bank
 
-            if not isinstance(new_bank, str):
-                warning = '\n~~Bank switch from 0x{0:X} to 0x{1:X}~~'.format(bank, new_bank)
-
-            else:
-                warning = new_bank
-
-            bank = new_bank
+            except Exception as e:
+                warning = e.args[0]
 
         chunk += op
 
@@ -141,12 +141,9 @@ def get_chunk(pc, data, stack, bank, stack_balance):
             stack_balance -= 1
 
         if stack_balance < 0:
-            warning = '\n~~Warning: Possible return address manipulation!~~'
+            warning = '\n~~ Warning: Possible return address manipulation! ~~'
 
-        if opcode not in end_op:
-            pc += op_len[opcode]
-
-        else:
+        if opcode in end_op:
             ending = True
 
             if opcode in JUMP_FAMILY:
@@ -184,10 +181,13 @@ def get_chunk(pc, data, stack, bank, stack_balance):
             if opcode == 0xE9:
                 next_addr = get_hl_mod(chunk)
 
+        pc += op_len[opcode]
+
     chunk += el * '-'
     chunk += warning
+    chunk_end = pc
 
-    return chunk, next_addr, bank, stack_balance
+    return (Rang(chunk_start, chunk_end), chunk), next_addr, bank, stack_balance
 
 
 def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_depth = None):
@@ -199,7 +199,7 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
             print('Error: bank changed in runtime!')
             break
 
-        root, pc, bank, local_stack_balance = get_chunk(pc, data, local_stack, bank, local_stack_balance)
+        (rangg, root), pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
         root += '\n\n'
         depth += 1
 
@@ -209,16 +209,15 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
             break
 
         elif pc >= 0x8000:
-            # root += 'Dynamic Execution: program go out of ROM!\n'
-            # print(root)
-            # break
-            pc -= 0x8000
+            root += 'Dynamic Execution: program go out of ROM!\n'
+            print(root)
+            break
 
         print(root)
 
 
 binary = []
-chunks = bintrees.RBTree()
+#chunks = bintrees.RBTree()
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
