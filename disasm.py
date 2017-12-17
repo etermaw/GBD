@@ -110,6 +110,19 @@ def get_single_op(pc, data, bank):
     return ret
 
 
+def merge_chunks(chunk1, chunk2):
+    new_start = min(chunk1.start, chunk2.start)
+    new_end = max(chunk1.end, chunk2.end)
+
+    intersection_point = 0
+
+    if chunk1.end >= chunk2.start:
+        intersection_point = chunk2.start
+
+    else:
+        intersection_point = chunk1.start
+
+
 def get_chunk(pc, data, bank, stack, stack_balance):
     chunk_start = pc
 
@@ -142,6 +155,12 @@ def get_chunk(pc, data, bank, stack, stack_balance):
 
         if stack_balance < 0:
             warning = '\n~~ Warning: Possible return address manipulation! ~~'
+
+        if opcode in split_op:
+            split_addr = get_next_addr(pc, data, bank)
+
+            if split_addr not in visited_chunks:
+                path_queue.append((split_addr, stack[::1]))
 
         if opcode in end_op:
             ending = True
@@ -208,7 +227,16 @@ def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_ba
             break
 
         else:
-            visited_chunks.insert(chunk_range, '')
+            if chunk_range.end in visited_chunks:
+                ov_chunk = visited_chunks[chunk_range.end]
+
+                marged_chunk = merge_chunks(root, ov_chunk)
+
+                visited_chunks.remove(chunk_range.end)
+                visited_chunks.insert(new_range, merged_chunk)
+
+            else:
+                visited_chunks.insert(chunk_range, '')
 
         if isinstance(pc, str):
             root += pc + '\n'
