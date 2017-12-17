@@ -1,6 +1,6 @@
 import sys
 import re
-#import bintrees
+import bintrees
 from opcodes import *
 from rang import *
 
@@ -190,7 +190,7 @@ def get_chunk(pc, data, bank, stack, stack_balance):
     return (Rang(chunk_start, chunk_end), chunk), next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_depth = None):
+def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_balance = 0, max_depth = None):
     depth = 0
     MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
@@ -199,9 +199,15 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
             print('Error: bank changed in runtime!')
             break
 
-        (rangg, root), pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
+        (chunk_range, root), pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
         root += '\n\n'
         depth += 1
+
+        if chunk_range.start in visited_chunks:
+            break
+
+        else:
+            visited_chunks.insert(chunk_range, '')
 
         if isinstance(pc, str):
             root += pc + '\n'
@@ -217,9 +223,9 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
 
 
 binary = []
-#chunks = bintrees.RBTree()
+chunks = bintrees.RBTree()
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
 
-follow_path(binary, int(sys.argv[2], 16), 1, max_depth=int(sys.argv[3]))
+follow_path(binary, int(sys.argv[2], 16), 1, chunks, max_depth=int(sys.argv[3]))
