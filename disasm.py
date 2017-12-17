@@ -1,6 +1,8 @@
 import sys
 import re
+import bintrees
 from opcodes import *
+from rang import *
 
 # regex for resolving static bank change
 LOAD_BANK_NUM = re.compile('LD A,(0x[\dA-F]+)')
@@ -216,6 +218,7 @@ def follow_path(data, pc, bank, local_stack = [], local_stack_balance = 0, max_d
 
 
 binary = []
+chunks = bintrees.RBTree()
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
