@@ -66,18 +66,32 @@ def get_hl_mod(opcode_list):
     return '\nCould not resolve HL value!'
 
 
+def merge_chunks(chunk1: [Opcode], chunk2: [Opcode]):
+    s1, s2 = chunk1[0].address, chunk2[0].address
+    e1, e2 = chunk1[-1].address, chunk2[-1].address
+
+    if s2 <= e1:
+        i1 = chunk1.index(s2)
+        return chunk1[0:i1] + chunk2
+
+    elif s1 <= e2:
+        i1 = chunk2.index(s1)
+        return chunk1[0:i1] + chunk2
+
+    else:
+        return None
+
+
 def get_single_op(pc, data, bank):
     opcode = get_byte(pc, data, bank)
     optional_arg = None
-    op_length = 0
+    op_length = op_len[opcode]
 
     if opcode == 0xCB:
         opcode = 0xCB00 + get_byte(pc + 1, data, bank)
         op_length = 2
 
     else:
-        op_length = op_len[opcode]
-        
         if op_length == 2:
             optional_arg = get_byte(pc + 1, data, bank)
 
