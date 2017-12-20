@@ -21,7 +21,7 @@ CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
 end_op = (0x18, 0xC3, 0xC9, 0xCD, 0xD9, 0xE9, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
 
 # opcodes that causes split in path
-split_op = JR_COND_FAMILY + RET_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY
+split_op = ()  # JR_COND_FAMILY + RET_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY
 
 
 def get_byte(pc, data, bank):
@@ -113,7 +113,7 @@ def get_single_op(pc, data, bank):
     return Opcode(calculate_internal_address(pc, bank), opcode, optional_arg, op_length)
 
 
-def get_chunk(pc, data, bank, stack, stack_balance):
+def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
     chunk_start = pc
     ending = False
     chunk_opcodes = []
@@ -188,7 +188,7 @@ def get_chunk(pc, data, bank, stack, stack_balance):
     return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, visited_chunks, local_stack=[], local_stack_balance=0, max_depth=None):
+def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local_stack_balance=0, max_depth=None):
     depth = 0
     MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
@@ -197,7 +197,7 @@ def follow_path(data, pc, bank, visited_chunks, local_stack=[], local_stack_bala
             print('Error: bank changed in runtime!')
             break
 
-        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
+        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance, visit_que, visited_chunks)
         depth += 1
 
         if chunk_range.start in visited_chunks:
@@ -258,4 +258,4 @@ with open(sys.argv[1], 'rb') as file:
     binary = file.read()
 
 
-follow_path(binary, int(sys.argv[2], 16), 1, chunks, max_depth=int(sys.argv[3]))
+follow_path(binary, int(sys.argv[2], 16), 1, chunks, visit_queue, max_depth=int(sys.argv[3]))
