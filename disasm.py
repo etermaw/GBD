@@ -185,15 +185,21 @@ def follow_path(data, pc, bank, visited_chunks, local_stack=[], local_stack_bala
             print('Error: bank changed in runtime!')
             break
 
-        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack,
-                                                                        local_stack_balance)
+        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
         depth += 1
 
         if chunk_range.start in visited_chunks:
             break
 
         else:
-            visited_chunks.insert(chunk_range, op_list)
+            if chunk_range.end in visited_chunks:
+                old = visited_chunks[chunk_range.end]
+                new = merge_chunks(op_list, old)
+                visited_chunks.remove(chunk_range.end)
+                visited_chunks.insert(Rang(new[0].address, new[-1].address), new)
+
+            else:
+                visited_chunks.insert(chunk_range, op_list)
 
         if isinstance(pc, str):
             print_opcodes(op_list)
