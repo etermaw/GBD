@@ -42,6 +42,18 @@ def get_new_bank(opcode_list):
     raise Exception('\n~~ Warning: Could not resolve new bank adress! ~~')
 
 
+def calculate_internal_address(pc, bank):
+    if pc < 0x4000:
+        return pc
+
+    else:
+        return (bank << 16) | pc
+
+
+def get_real_address(internal_address):
+    return internal_address & 0xFFFF
+
+
 def get_hl_mod(opcode_list):
     ops = opcode_list[::-1]
     hval = None
@@ -79,7 +91,7 @@ def merge_chunks(chunk1: [Opcode], chunk2: [Opcode]):
         return chunk1[0:i1] + chunk2
 
     else:
-        return None
+        raise Exception('Trying to merge two separate chunks!')
 
 
 def get_single_op(pc, data, bank):
@@ -98,7 +110,7 @@ def get_single_op(pc, data, bank):
         elif op_length == 3:
             optional_arg = (get_byte(pc + 2, data, bank) << 8) | get_byte(pc + 1, data, bank)
 
-    return Opcode(pc, opcode, optional_arg, op_length)
+    return Opcode(calculate_internal_address(pc, bank), opcode, optional_arg, op_length)
 
 
 def get_chunk(pc, data, bank, stack, stack_balance):
@@ -216,30 +228,34 @@ def follow_path(data, pc, bank, visited_chunks, local_stack=[], local_stack_bala
 
 def print_opcodes(opcode_list):
     fmt_str = '0x{0:X} {1}'
-    header = '----- CHUNK 0x{0:X} -----'.format(opcode_list[0].address)
+    header = '----- CHUNK 0x{0:X} -----'.format(get_real_address(opcode_list[0].address))
     footer = '-' * len(header) + '\n'
 
     print(header)
 
     for op in opcode_list:
+        real_address = get_real_address(op.address)
+
         if op.opcode <= 0xFF:
             tmp_op = opcodes[op.opcode]
 
             if op.optional_arg is not None:
                 tmp_op = tmp_op.format(op.optional_arg)
 
-            print(fmt_str.format(op.address, tmp_op))
+            print(fmt_str.format(real_address, tmp_op))
 
         else:
-            print(fmt_str.format(op.address, ext_opcodes[op.opcode - 0xCB00]))
+            print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00]))
 
     print(footer)
 
 
 binary = []
 chunks = bintrees.RBTree()
+visit_queue = []
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
+
 
 follow_path(binary, int(sys.argv[2], 16), 1, chunks, max_depth=int(sys.argv[3]))
