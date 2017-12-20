@@ -244,10 +244,13 @@ def print_opcodes(opcode_list):
 
 binary = []
 chunks = bintrees.RBTree()
-visit_queue = []
+visit_queue = [(int(sys.argv[2], 16), 1, [], 0)]  # (pc, bank, ?stack, ?stack_balance)
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
 
+i = 0
 
-follow_path(binary, int(sys.argv[2], 16), 1, chunks, visit_queue, max_depth=int(sys.argv[3]))
+while i < len(visit_queue):
+    follow_path(binary, visit_queue[i][0], visit_queue[i][1], chunks, visit_queue, visit_queue[i][2], visit_queue[i][3], max_depth=int(sys.argv[3]))
+    i += 1
