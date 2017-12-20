@@ -1,24 +1,14 @@
 import sys
-import re
 import bintrees
 from opcodes import *
-from rang import *
-
-# regex for resolving static bank change
-LOAD_BANK_NUM = re.compile('LD A,(0x[\dA-F]+)')
-CHANGE_BANK = re.compile('LD \(0x[2-3][\dA-F]{3}\),A')
-
-# regex for resolving static jump to address pointed by HL
-LOAD_HL = re.compile('LD HL,\((0x[\dA-F]{1,4})\)')
-LOAD_H = re.compile('LD H,(0x[\dA-F]{1,2})')
-LOAD_L = re.compile('LD L,(0x[\dA-F]{1,2})')
+from helpers import *
 
 # opcode families
 PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
 POP_FAMILY = (0xC1, 0xD1, 0xE1, 0xF1)
 RST_FAMILY = (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
 CALL_FAMILY = (0xCD,) + RST_FAMILY
-JUMP_FAMILY = (0x18, 0xC3, 0xCD)
+JUMP_FAMILY = (0x18, 0xC3)
 RET_FAMILY = (0xC9, 0xD9)
 
 JR_COND_FAMILY = (0x20, 0x28, 0x30, 0x38)
@@ -27,11 +17,11 @@ JP_COND_FAMILY = (0xC2, 0xCA, 0xD2, 0xDA)
 CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
 
 # opcodes that ends chunk
-#          JR     JP   RET  CALL  RETI  JP(HL) RST
-end_op = (0x18, 0xC3, 0xC9, 0xCD, 0xD9, 0xE9, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
+#       JP(HL)
+end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = JR_COND_FAMILY + RET_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY
+split_op = ()  # JR_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY + CALL_FAMILY
 
 
 def get_byte(pc, data, bank):
@@ -42,47 +32,45 @@ def get_byte(pc, data, bank):
         return data[(pc - 0x4000) + 0x4000 * bank]
 
 
-def decode(byte1, byte2):
-    if byte1 != 0xCB:
-        return opcodes[byte1]
-
-    else:
-        return ext_opcodes[byte2]
-
-
-def get_new_bank(chunk):
-    ops = chunk.split('\n')[1:][::-1]
+def get_new_bank(opcode_list):
+    ops = opcode_list[::-1]
 
     for op in ops:
-        result = LOAD_BANK_NUM.search(op)
-
-        if result is not None:
-            return int(result.group(1), 16)
+        if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
+            return op.optional_arg
 
     raise Exception('\n~~ Warning: Could not resolve new bank adress! ~~')
 
 
-def get_hl_mod(chunk):
-    ops = chunk.split('\n')[1:][::-1]
+def calculate_internal_address(pc, bank):
+    if pc < 0x4000:
+        return pc
+
+    else:
+        return (bank << 16) | pc
+
+
+def get_real_address(internal_address):
+    return internal_address & 0xFFFF
+
+
+def get_hl_mod(opcode_list):
+    ops = opcode_list[::-1]
     hval = None
     lval = None
 
     for op in ops:
-        hl = LOAD_HL.search(op)
-        h = LOAD_H.search(op)
-        l = LOAD_L.search(op)
+        if op.opcode == 0x21:  # if opcode == 'LD HL,(0x0000 ~ 0xFFFF)'
+            return op.optional_arg
 
-        if hl is not None:
-            return int(hl.group(1), 16)
-
-        elif h is not None and hval is not None:
-            hval = int(h.group(1), 16)
+        elif op.opcode == 0x26 and hval is not None:  # if opcode == 'LD H,(0x0 ~ 0xFF)'
+            hval = op.optional_arg
 
             if lval is not None:
                 return (hval << 8) | lval
 
-        elif l is not None and lval is not None:
-            lval = int(l.group(1), 16)
+        elif op.opcode == 0x2E and lval is not None:  # if opcode == 'LD L,(0x0 ~ 0xFF)'
+            lval = op.optional_arg
 
             if hval is not None:
                 return (hval << 8) | lval
@@ -90,101 +78,88 @@ def get_hl_mod(chunk):
     return '\nCould not resolve HL value!'
 
 
-def get_next_addr(pc, data, bank):
-    if op_len[get_byte(pc, data, bank)] == 2:
-        return get_byte(pc + 1, data, bank)
+def merge_chunks(chunk1: [Opcode], chunk2: [Opcode]):
+    s1, s2 = chunk1[0].address, chunk2[0].address
+    e1, e2 = chunk1[-1].address, chunk2[-1].address
 
-    elif op_len[get_byte(pc, data, bank)] == 3:
-        return (get_byte(pc + 2, data, bank) << 8) | get_byte(pc + 1, data, bank)
+    if s2 <= e1:
+        i1 = chunk1.index(s2)
+        return chunk1[0:i1] + chunk2
+
+    elif s1 <= e2:
+        i1 = chunk2.index(s1)
+        return chunk1[0:i1] + chunk2
+
+    else:
+        raise Exception('Trying to merge two separate chunks!')
 
 
 def get_single_op(pc, data, bank):
-    ret = '0x{0:X} {1}'.format(pc, decode(get_byte(pc, data, bank), get_byte(pc + 1, data, bank)))
+    opcode = get_byte(pc, data, bank)
+    optional_arg = None
+    op_length = op_len[opcode]
 
-    if op_len[get_byte(pc, data, bank)] == 2:
-        ret = ret.format(get_byte(pc + 1, data, bank))
-
-    elif op_len[get_byte(pc, data, bank)] == 3:
-        ret = ret.format((get_byte(pc + 2, data, bank) << 8) | get_byte(pc + 1, data, bank))
-
-    return ret
-
-
-def merge_chunks(chunk1, chunk2):
-    new_start = min(chunk1.start, chunk2.start)
-    new_end = max(chunk1.end, chunk2.end)
-
-    intersection_point = 0
-
-    if chunk1.end >= chunk2.start:
-        intersection_point = chunk2.start
+    if opcode == 0xCB:
+        opcode = 0xCB00 + get_byte(pc + 1, data, bank)
+        op_length = 2
 
     else:
-        intersection_point = chunk1.start
+        if op_length == 2:
+            optional_arg = get_byte(pc + 1, data, bank)
+
+        elif op_length == 3:
+            optional_arg = (get_byte(pc + 2, data, bank) << 8) | get_byte(pc + 1, data, bank)
+
+    return Opcode(calculate_internal_address(pc, bank), opcode, optional_arg, op_length)
 
 
-def get_chunk(pc, data, bank, stack, stack_balance):
+def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
     chunk_start = pc
-
-    chunk = '---CHUNK 0x{0:X}---\n'.format(pc)
-    el = len(chunk) - 1
     ending = False
-    next_addr = 'Cannot go deeper!'
-    warning = ''
+    chunk_opcodes = []
+    next_addr = None
 
     while not ending:
-        opcode = get_byte(pc, data, bank)
-        op = get_single_op(pc, data, bank) + '\n'
+        op = get_single_op(pc, data, bank)
 
-        if CHANGE_BANK.search(op):
+        # if LD A, (0x2000 ~ 0x3FFF) [change bank command]
+        if op.opcode == 0xEA and 0x2000 <= op.optional_arg <= 0x3FFF:
             try:
-                new_bank = get_new_bank(chunk)
-                warning = '\n~~ Bank switch from 0x{0:X} to 0x{1:X} ~~'.format(bank, new_bank)
+                new_bank = get_new_bank(chunk_opcodes)
                 bank = new_bank
 
             except Exception as e:
                 warning = e.args[0]
 
-        chunk += op
+        chunk_opcodes.append(op)
 
-        if opcode in PUSH_FAMILY:
+        if op.opcode in PUSH_FAMILY:
             stack_balance += 1
 
-        elif opcode in POP_FAMILY:
+        elif op.opcode in POP_FAMILY:
             stack_balance -= 1
 
         if stack_balance < 0:
             warning = '\n~~ Warning: Possible return address manipulation! ~~'
 
-        if opcode in split_op:
-            split_addr = get_next_addr(pc, data, bank)
-
-            if split_addr not in visited_chunks:
-                path_queue.append((split_addr, stack[::1]))
-
-        if opcode in end_op:
+        if op.opcode in end_op:
             ending = True
 
-            if opcode in JUMP_FAMILY:
-                next_addr = get_next_addr(pc, data, bank)
+            if op.opcode in JUMP_FAMILY:
+                next_addr = op.optional_arg
 
-                if opcode == 0x18:
+                if op.opcode == 0x18:
                     ret = next_addr
 
                     if ret > 127:
-                        ret = -(256 - ret)
+                        ret = ret - 256
 
-                    next_addr = pc + ret + op_len[opcode]
+                    next_addr = pc + ret + 2  # JR length is always 2
 
-            if opcode in RST_FAMILY:
-                next_addr = ((opcode >> 3) & 7) * 0x8
+            elif op.opcode == 0xE9:
+                next_addr = get_hl_mod(chunk_opcodes)
 
-            if opcode in CALL_FAMILY:
-                # next_addr is handled in JUMP_FAMILY condition
-                stack.append((pc + op_len[opcode], stack_balance))
-                stack_balance = 0
-
-            if opcode in RET_FAMILY:
+            else:
                 if len(stack) == 0:
                     next_addr = 'Stack underflow!'
 
@@ -198,19 +173,14 @@ def get_chunk(pc, data, bank, stack, stack_balance):
                     next_addr, stack_balance = stack[-1]
                     stack.pop()
 
-            if opcode == 0xE9:
-                next_addr = get_hl_mod(chunk)
+        pc += op.opcode_len
 
-        pc += op_len[opcode]
+    chunk_end = pc - 1
 
-    chunk += el * '-'
-    chunk += warning
-    chunk_end = pc
-
-    return (Rang(chunk_start, chunk_end), chunk), next_addr, bank, stack_balance
+    return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_balance = 0, max_depth = None):
+def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local_stack_balance=0, max_depth=None):
     depth = 0
     MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
@@ -219,8 +189,7 @@ def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_ba
             print('Error: bank changed in runtime!')
             break
 
-        (chunk_range, root), pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance)
-        root += '\n\n'
+        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance, visit_que, visited_chunks)
         depth += 1
 
         if chunk_range.start in visited_chunks:
@@ -228,33 +197,60 @@ def follow_path(data, pc, bank, visited_chunks, local_stack = [], local_stack_ba
 
         else:
             if chunk_range.end in visited_chunks:
-                ov_chunk = visited_chunks[chunk_range.end]
-
-                marged_chunk = merge_chunks(root, ov_chunk)
-
+                old = visited_chunks[chunk_range.end]
+                new = merge_chunks(op_list, old)
                 visited_chunks.remove(chunk_range.end)
-                visited_chunks.insert(new_range, merged_chunk)
+                visited_chunks.insert(Rang(new[0].address, new[-1].address), new)
 
             else:
-                visited_chunks.insert(chunk_range, '')
+                visited_chunks.insert(chunk_range, op_list)
 
         if isinstance(pc, str):
-            root += pc + '\n'
-            print(root)
+            print_opcodes(op_list)
+            print(pc + '\n')
             break
 
         elif pc >= 0x8000:
-            root += 'Dynamic Execution: program go out of ROM!\n'
-            print(root)
+            print_opcodes(op_list)
+            print('Dynamic Execution: program go out of ROM!\n')
             break
 
-        print(root)
+        print_opcodes(op_list)
+
+
+def print_opcodes(opcode_list):
+    fmt_str = '0x{0:X} {1}'
+    header = '----- CHUNK 0x{0:X} -----'.format(get_real_address(opcode_list[0].address))
+    footer = '-' * len(header) + '\n'
+
+    print(header)
+
+    for op in opcode_list:
+        real_address = get_real_address(op.address)
+
+        if op.opcode <= 0xFF:
+            tmp_op = opcodes[op.opcode]
+
+            if op.optional_arg is not None:
+                tmp_op = tmp_op.format(op.optional_arg)
+
+            print(fmt_str.format(real_address, tmp_op))
+
+        else:
+            print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00]))
+
+    print(footer)
 
 
 binary = []
 chunks = bintrees.RBTree()
+visit_queue = [(int(sys.argv[2], 16), 1, [], 0)]  # (pc, bank, ?stack, ?stack_balance)
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
 
-follow_path(binary, int(sys.argv[2], 16), 1, chunks, max_depth=int(sys.argv[3]))
+i = 0
+
+while i < len(visit_queue):
+    follow_path(binary, visit_queue[i][0], visit_queue[i][1], chunks, visit_queue, visit_queue[i][2], visit_queue[i][3], max_depth=int(sys.argv[3]))
+    i += 1

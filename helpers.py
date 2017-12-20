@@ -24,3 +24,19 @@ class Rang:
 
     def overlaps(self, other_rang):
         return self.start <= other_rang.end and self.end >= other_rang.start
+
+
+class Opcode:
+    address = 0
+    opcode = 0
+    optional_arg = 0
+    opcode_len = 0
+
+    def __init__(self, address, opcode, optional_arg, opcode_len):
+        self.address = address
+        self.opcode = opcode
+        self.optional_arg = optional_arg
+        self.opcode_len = opcode_len
+
+    def __eq__(self, other):
+        return self.address == other
