@@ -8,7 +8,7 @@ PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
 POP_FAMILY = (0xC1, 0xD1, 0xE1, 0xF1)
 RST_FAMILY = (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
 CALL_FAMILY = (0xCD,) + RST_FAMILY
-JUMP_FAMILY = (0x18, 0xC3, 0xCD)
+JUMP_FAMILY = (0x18, 0xC3)
 RET_FAMILY = (0xC9, 0xD9)
 
 JR_COND_FAMILY = (0x20, 0x28, 0x30, 0x38)
@@ -17,11 +17,11 @@ JP_COND_FAMILY = (0xC2, 0xCA, 0xD2, 0xDA)
 CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
 
 # opcodes that ends chunk
-#          JR     JP   RET  CALL  RETI  JP(HL) RST
-end_op = (0x18, 0xC3, 0xC9, 0xCD, 0xD9, 0xE9, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
+#       JP(HL)
+end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = ()  # JR_COND_FAMILY + RET_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY
+split_op = ()  # JR_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY + CALL_FAMILY
 
 
 def get_byte(pc, data, bank):
@@ -156,15 +156,10 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
 
                     next_addr = pc + ret + 2  # JR length is always 2
 
-            if op.opcode in RST_FAMILY:
-                next_addr = ((op.opcode >> 3) & 7) * 0x8
+            elif op.opcode == 0xE9:
+                next_addr = get_hl_mod(chunk_opcodes)
 
-            if op.opcode in CALL_FAMILY:
-                # next_addr is handled in JUMP_FAMILY condition
-                stack.append((pc + op.opcode_len, stack_balance))
-                stack_balance = 0
-
-            if op.opcode in RET_FAMILY:
+            else:
                 if len(stack) == 0:
                     next_addr = 'Stack underflow!'
 
@@ -177,9 +172,6 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 else:
                     next_addr, stack_balance = stack[-1]
                     stack.pop()
-
-            if op.opcode == 0xE9:
-                next_addr = get_hl_mod(chunk_opcodes)
 
         pc += op.opcode_len
 
