@@ -140,7 +140,7 @@ def get_chunk(pc, data, bank, stack, stack_balance):
                     ret = next_addr
 
                     if ret > 127:
-                        ret = -(256 - ret)
+                        ret = ret - 256
 
                     next_addr = pc + ret + 2  # JR length is always 2
 
@@ -222,7 +222,7 @@ def print_opcodes(opcode_list):
             if op.optional_arg is not None:
                 tmp_op = tmp_op.format(op.optional_arg)
 
-            print(fmt_str.format(op.opcode, tmp_op))
+            print(fmt_str.format(op.address, tmp_op))
 
         else:
             print(fmt_str.format(op.address, ext_opcodes[op.opcode - 0xCB00]))
