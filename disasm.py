@@ -219,8 +219,10 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local
 
 
 def print_opcodes(opcode_list):
+    start_addr = opcode_list[0].address
+    bank_str = '' if start_addr < 0x4000 else '(BANK 0x{:X})'.format(start_addr >> 16)
     fmt_str = '0x{0:X} {1}'
-    header = '----- CHUNK 0x{0:X} -----'.format(get_real_address(opcode_list[0].address))
+    header = '----- CHUNK 0x{0:X} {1} -----'.format(get_real_address(start_addr), bank_str)
     footer = '-' * len(header) + '\n'
 
     print(header)
