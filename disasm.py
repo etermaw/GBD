@@ -113,7 +113,7 @@ def get_single_op(pc, data, bank):
 
 
 def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
-    chunk_start = pc
+    chunk_start = calculate_internal_address(pc, bank)
     ending = False
     chunk_opcodes = []
     next_addr = None
@@ -174,7 +174,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
 
         pc += op.opcode_len
 
-    chunk_end = pc - 1
+    chunk_end = calculate_internal_address(pc - 1, bank)
 
     return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
 
