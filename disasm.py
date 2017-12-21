@@ -80,18 +80,17 @@ def get_hl_mod(opcode_list):
 
 def merge_chunks(chunk1: [Opcode], chunk2: [Opcode]):
     s1, s2 = chunk1[0].address, chunk2[0].address
-    e1, e2 = chunk1[-1].address, chunk2[-1].address
 
-    if s2 <= e1:
-        i1 = chunk1.index(s2)
-        return chunk1[0:i1] + chunk2
+    if s1 < s2:
+        cross_point = chunk1.index(s2)
+        return chunk1[0:cross_point] + chunk2
 
-    elif s1 <= e2:
-        i1 = chunk2.index(s1)
-        return chunk1[0:i1] + chunk2
+    elif s1 > s2:
+        cross_point = chunk2.index(s1)
+        return chunk2[0:cross_point] + chunk1
 
     else:
-        raise Exception('Trying to merge two separate chunks!')
+        return chunk1
 
 
 def get_single_op(pc, data, bank):
