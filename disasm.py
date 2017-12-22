@@ -136,18 +136,21 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 bank = new_bank
 
             except Exception as e:
-                warning = e.args[0]
+                op.warning = e.args[0]
 
         chunk_opcodes.append(op)
 
         if op.opcode in PUSH_FAMILY:
+            if stack_balance < 0:
+                op.warning = 'Overwriting previous stack frame!'
+
             stack_balance += 1
 
         elif op.opcode in POP_FAMILY:
-            stack_balance -= 1
+            if stack_balance <= 0:
+                op.warning = 'Popped additional stack frame!'
 
-        if stack_balance < 0:
-            warning = '\n~~ Warning: Possible return address manipulation! ~~'
+            stack_balance -= 1
 
         if op.opcode in split_op:
             split_dst = op.optional_arg
@@ -229,13 +232,16 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance,
 def print_opcodes(opcode_list):
     start_addr = opcode_list[0].address
     bank_str = '' if start_addr < 0x4000 else ' (BANK 0x{:X})'.format(get_bank_num(start_addr))
-    fmt_str = '0x{0:X} {1}'
+    fmt_str = '0x{0:X} {1}{2}'
     header = '----- CHUNK 0x{0:X}{1} -----'.format(get_real_address(start_addr), bank_str)
     footer = '-' * len(header) + '\n'
+
+    warning_str = '\t\t[{}]'
 
     print(header)
 
     for op in opcode_list:
+        warning = warning_str.format(op.warning) if op.warning is not None else ''
         real_address = get_real_address(op.address)
 
         if op.opcode <= 0xFF:
@@ -244,10 +250,10 @@ def print_opcodes(opcode_list):
             if op.optional_arg is not None:
                 tmp_op = tmp_op.format(op.optional_arg)
 
-            print(fmt_str.format(real_address, tmp_op))
+            print(fmt_str.format(real_address, tmp_op, warning))
 
         else:
-            print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00]))
+            print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00], warning))
 
     print(footer)
 
