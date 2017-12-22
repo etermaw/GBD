@@ -21,7 +21,7 @@ CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
 end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = ()  # JR_COND_FAMILY + JP_COND_FAMILY + CALL_COND_FAMILY + CALL_FAMILY
+split_op = JR_COND_FAMILY  # + JP_COND_FAMILY + CALL_COND_FAMILY + CALL_FAMILY
 
 
 def get_byte(pc, data, bank):
@@ -52,6 +52,10 @@ def calculate_internal_address(pc, bank):
 
 def get_real_address(internal_address):
     return internal_address & 0xFFFF
+
+
+def get_bank_num(internal_address):
+    return internal_address >> 16
 
 
 def get_hl_mod(opcode_list):
@@ -140,6 +144,17 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
         if stack_balance < 0:
             warning = '\n~~ Warning: Possible return address manipulation! ~~'
 
+        if op.opcode in split_op:
+            split_dst = op.optional_arg
+
+            if split_dst > 127:
+                split_dst = 256 - split_dst
+
+            split_dst = calculate_internal_address(pc + split_dst + 2, bank)
+
+            if split_dst not in visited_chunks and get_real_address(split_dst) < 0x8000:
+                visit_que.append((split_dst, bank, stack.copy(), stack_balance))
+
         if op.opcode in end_op:
             ending = True
 
@@ -187,13 +202,10 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local
             print('Error: bank changed in runtime!')
             break
 
-        chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance, visit_que, visited_chunks)
-        depth += 1
+        if calculate_internal_address(pc, bank) not in visited_chunks:
+            chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance, visit_que, visited_chunks)
+            depth += 1
 
-        if chunk_range.start in visited_chunks:
-            break
-
-        else:
             if chunk_range.end in visited_chunks:
                 old = visited_chunks[chunk_range.end]
                 new = merge_chunks(op_list, old)
@@ -203,24 +215,23 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local
             else:
                 visited_chunks.insert(chunk_range, op_list)
 
-        if isinstance(pc, str):
-            print_opcodes(op_list)
-            print(pc + '\n')
-            break
+            if isinstance(pc, str):
+                print(pc + '\n')
+                break
 
-        elif pc >= 0x8000:
-            print_opcodes(op_list)
-            print('Dynamic Execution: program go out of ROM!\n')
-            break
+            elif pc >= 0x8000:
+                print('Dynamic Execution: program go out of ROM!\n')
+                break
 
-        print_opcodes(op_list)
+        else:
+            break
 
 
 def print_opcodes(opcode_list):
     start_addr = opcode_list[0].address
-    bank_str = '' if start_addr < 0x4000 else '(BANK 0x{:X})'.format(start_addr >> 16)
+    bank_str = '' if start_addr < 0x4000 else ' (BANK 0x{:X})'.format(get_bank_num(start_addr))
     fmt_str = '0x{0:X} {1}'
-    header = '----- CHUNK 0x{0:X} {1} -----'.format(get_real_address(start_addr), bank_str)
+    header = '----- CHUNK 0x{0:X}{1} -----'.format(get_real_address(start_addr), bank_str)
     footer = '-' * len(header) + '\n'
 
     print(header)
@@ -244,13 +255,15 @@ def print_opcodes(opcode_list):
 
 binary = []
 chunks = bintrees.RBTree()
-visit_queue = [(int(sys.argv[2], 16), 1, [], 0)]  # (pc, bank, ?stack, ?stack_balance)
+visit_queue = [(int(sys.argv[2], 16), 1, [], 0)]  # (pc, bank, stack, stack_balance)
 
 with open(sys.argv[1], 'rb') as file:
     binary = file.read()
 
-i = 0
+while len(visit_queue) > 0:
+    next_path = visit_queue.pop()
+    follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], int(sys.argv[3]))
 
-while i < len(visit_queue):
-    follow_path(binary, visit_queue[i][0], visit_queue[i][1], chunks, visit_queue, visit_queue[i][2], visit_queue[i][3], max_depth=int(sys.argv[3]))
-    i += 1
+for i in chunks:
+    print_opcodes(chunks[i])
+
