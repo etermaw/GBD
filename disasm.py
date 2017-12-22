@@ -24,6 +24,13 @@ end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 split_op = JR_COND_FAMILY + JP_COND_FAMILY  # + CALL_COND_FAMILY + CALL_FAMILY
 
 
+def u8_correction(value):
+    if value > 127:
+        value -= 256
+
+    return value
+
+
 def get_byte(pc, data, bank):
     if pc < 0x4000:
         return data[pc]
@@ -146,10 +153,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
             split_dst = op.optional_arg
 
             if op.opcode in JR_COND_FAMILY:
-                if split_dst > 127:
-                    split_dst = 256 - split_dst
-
-                split_dst = calculate_internal_address(pc + split_dst + 2, bank)
+                split_dst = calculate_internal_address(pc + u8_correction(split_dst) + 2, bank)
 
             else:
                 split_dst = calculate_internal_address(split_dst, bank)
@@ -164,12 +168,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 next_addr = op.optional_arg
 
                 if op.opcode == 0x18:
-                    ret = next_addr
-
-                    if ret > 127:
-                        ret = ret - 256
-
-                    next_addr = pc + ret + 2  # JR length is always 2
+                    next_addr = pc + u8_correction(next_addr) + 2  # JR length is always 2
 
             elif op.opcode == 0xE9:
                 next_addr = get_hl_mod(chunk_opcodes)
