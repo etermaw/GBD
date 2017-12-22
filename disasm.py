@@ -33,9 +33,7 @@ def get_byte(pc, data, bank):
 
 
 def get_new_bank(opcode_list):
-    ops = opcode_list[::-1]
-
-    for op in ops:
+    for op in reversed(opcode_list):
         if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
             return op.optional_arg
 
