@@ -21,7 +21,7 @@ CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
 end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = JR_COND_FAMILY  # + JP_COND_FAMILY + CALL_COND_FAMILY + CALL_FAMILY
+split_op = JR_COND_FAMILY + JP_COND_FAMILY  # + CALL_COND_FAMILY + CALL_FAMILY
 
 
 def get_byte(pc, data, bank):
@@ -145,10 +145,14 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
         if op.opcode in split_op:
             split_dst = op.optional_arg
 
-            if split_dst > 127:
-                split_dst = 256 - split_dst
+            if op.opcode in JR_COND_FAMILY:
+                if split_dst > 127:
+                    split_dst = 256 - split_dst
 
-            split_dst = calculate_internal_address(pc + split_dst + 2, bank)
+                split_dst = calculate_internal_address(pc + split_dst + 2, bank)
+
+            else:
+                split_dst = calculate_internal_address(split_dst, bank)
 
             if split_dst not in visited_chunks and get_real_address(split_dst) < 0x8000:
                 visit_que.append((split_dst, bank, stack.copy(), stack_balance))
@@ -171,18 +175,17 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 next_addr = get_hl_mod(chunk_opcodes)
 
             else:
-                if len(stack) == 0:
-                    next_addr = 'Stack underflow!'
-
-                elif stack_balance < 0:
+                if stack_balance < 0:
                     next_addr = 'Detected stack manipulation: chunk pops return address!'
 
                 elif stack_balance > 0:
                     next_addr = 'Detected stack manipulation: chunk pushes new return address!'
 
+                elif len(stack) > 0:
+                    next_addr, stack_balance = stack.pop()
+
                 else:
-                    next_addr, stack_balance = stack[-1]
-                    stack.pop()
+                    next_addr = ''
 
         pc += op.opcode_len
 
@@ -191,17 +194,16 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
     return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, visited_chunks, visit_que, local_stack=[], local_stack_balance=0, max_depth=None):
+def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance, max_depth):
     depth = 0
-    MAX_DEPTH = max_depth if max_depth is not None else 999999999
 
-    while depth < MAX_DEPTH:
+    while depth < max_depth:
         if pc >= 0x4000 and isinstance(bank, str):
             print('Error: bank changed in runtime!')
             break
 
         if calculate_internal_address(pc, bank) not in visited_chunks:
-            chunk_range, op_list, pc, bank, local_stack_balance = get_chunk(pc, data, bank, local_stack, local_stack_balance, visit_que, visited_chunks)
+            chunk_range, op_list, pc, bank, stack_balance = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
             depth += 1
 
             if chunk_range.end in visited_chunks:
