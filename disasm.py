@@ -55,11 +55,10 @@ def get_real_address(internal_address):
 
 
 def get_hl_mod(opcode_list):
-    ops = opcode_list[::-1]
     hval = None
     lval = None
 
-    for op in ops:
+    for op in reversed(opcode_list):
         if op.opcode == 0x21:  # if opcode == 'LD HL,(0x0000 ~ 0xFFFF)'
             return op.optional_arg
 
