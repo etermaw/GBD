@@ -156,12 +156,9 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
             split_dst = op.optional_arg
 
             if op.opcode in JR_COND_FAMILY:
-                split_dst = calculate_internal_address(pc + u8_correction(split_dst) + 2, bank)
+                split_dst = pc + u8_correction(split_dst) + 2
 
-            else:
-                split_dst = calculate_internal_address(split_dst, bank)
-
-            if split_dst not in visited_chunks and get_real_address(split_dst) < 0x8000:
+            if calculate_internal_address(split_dst, bank) not in visited_chunks and split_dst < 0x8000:
                 visit_que.append((split_dst, bank, stack.copy(), stack_balance))
 
         if op.opcode in end_op:
