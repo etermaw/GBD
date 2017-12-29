@@ -20,7 +20,7 @@ CALL_FAMILY = (0xCD, 0xC4, 0xCC, 0xD4, 0xDC)
 end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = JR_COND_FAMILY + JP_COND_FAMILY + CALL_FAMILY
+split_op = JR_COND_FAMILY + JP_COND_FAMILY + CALL_FAMILY + RST_FAMILY
 
 
 def u8_correction(value):
@@ -157,8 +157,11 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
             if op.opcode in JR_COND_FAMILY:
                 split_dst = pc + u8_correction(split_dst) + 2
 
+            elif op.opcode in RST_FAMILY:
+                split_dst = ((op.opcode >> 3) & 7) * 0x8
+
             if calculate_internal_address(split_dst, bank) not in visited_chunks and split_dst < 0x8000:
-                if op.opcode in CALL_FAMILY:
+                if op.opcode in CALL_FAMILY + RST_FAMILY:
                     visit_que.append((split_dst, bank, [], 0))
 
                 else:
