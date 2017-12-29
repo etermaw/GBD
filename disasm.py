@@ -83,7 +83,7 @@ def get_hl_mod(opcode_list):
             if hval is not None:
                 return (hval << 8) | lval
 
-    return '\nCould not resolve HL value!'
+    raise Exception('Could not resolve HL value!')
 
 
 def merge_chunks(chunk1: [Opcode], chunk2: [Opcode]):
@@ -125,6 +125,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
     ending = False
     chunk_opcodes = []
     next_addr = None
+    error_end = None
 
     while not ending:
         op = get_single_op(pc, data, bank)
@@ -178,38 +179,35 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                     next_addr = pc + u8_correction(next_addr) + 2  # JR length is always 2
 
             elif op.opcode == 0xE9:
-                next_addr = get_hl_mod(chunk_opcodes)
+                try:
+                    next_addr = get_hl_mod(chunk_opcodes)
+
+                except Exception as e:
+                    error_end = e.args[0]
 
             else:
                 if stack_balance < 0:
-                    next_addr = 'Detected stack manipulation: chunk pops return address!'
+                    error_end = 'Detected stack manipulation: chunk pops return address!'
 
                 elif stack_balance > 0:
-                    next_addr = 'Detected stack manipulation: chunk pushes new return address!'
+                    error_end = 'Detected stack manipulation: chunk pushes new return address!'
 
                 elif len(stack) > 0:
                     next_addr, stack_balance = stack.pop()
-
-                else:
-                    next_addr = ''
 
         pc += op.opcode_len
 
     chunk_end = calculate_internal_address(pc - 1, bank)
 
-    return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance
+    return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance, error_end
 
 
 def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance, max_depth):
     depth = 0
 
     while depth < max_depth:
-        if pc >= 0x4000 and isinstance(bank, str):
-            print('Error: bank changed in runtime!')
-            break
-
         if calculate_internal_address(pc, bank) not in visited_chunks:
-            chunk_range, op_list, pc, bank, stack_balance = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
+            chunk_range, op_list, pc, bank, stack_balance, error = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
             depth += 1
 
             if chunk_range.end in visited_chunks:
@@ -221,8 +219,11 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance,
             else:
                 visited_chunks.insert(chunk_range, op_list)
 
-            if isinstance(pc, str):
-                print(pc + '\n')
+            if error is not None:
+                print(error)
+                break
+
+            elif pc is None:
                 break
 
             elif pc >= 0x8000:
