@@ -14,6 +14,7 @@ JR_COND_FAMILY = (0x20, 0x28, 0x30, 0x38)
 RET_COND_FAMILY = (0xC0, 0xC8, 0xD0, 0xD8)
 JP_COND_FAMILY = (0xC2, 0xCA, 0xD2, 0xDA)
 CALL_FAMILY = (0xCD, 0xC4, 0xCC, 0xD4, 0xDC)
+CALL_RST_FAMILY = CALL_FAMILY + RST_FAMILY
 
 # opcodes that ends chunk
 #       JP(HL)
@@ -161,7 +162,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 split_dst = ((op.opcode >> 3) & 7) * 0x8
 
             if calculate_internal_address(split_dst, bank) not in visited_chunks and split_dst < 0x8000:
-                if op.opcode in CALL_FAMILY + RST_FAMILY:
+                if op.opcode in CALL_RST_FAMILY:
                     visit_que.append((split_dst, bank, [], 0))
 
                 else:
