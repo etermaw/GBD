@@ -7,21 +7,20 @@ from helpers import *
 PUSH_FAMILY = (0xC5, 0xD5, 0xE5, 0xF5)
 POP_FAMILY = (0xC1, 0xD1, 0xE1, 0xF1)
 RST_FAMILY = (0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF)
-CALL_FAMILY = (0xCD,) + RST_FAMILY
 JUMP_FAMILY = (0x18, 0xC3)
 RET_FAMILY = (0xC9, 0xD9)
 
 JR_COND_FAMILY = (0x20, 0x28, 0x30, 0x38)
 RET_COND_FAMILY = (0xC0, 0xC8, 0xD0, 0xD8)
 JP_COND_FAMILY = (0xC2, 0xCA, 0xD2, 0xDA)
-CALL_COND_FAMILY = (0xC4, 0xCC, 0xD4, 0xDC)
+CALL_FAMILY = (0xCD, 0xC4, 0xCC, 0xD4, 0xDC)
 
 # opcodes that ends chunk
 #       JP(HL)
 end_op = (0xE9,) + JUMP_FAMILY + RET_FAMILY
 
 # opcodes that causes split in path
-split_op = JR_COND_FAMILY + JP_COND_FAMILY  # + CALL_COND_FAMILY + CALL_FAMILY
+split_op = JR_COND_FAMILY + JP_COND_FAMILY + CALL_FAMILY
 
 
 def u8_correction(value):
@@ -44,7 +43,7 @@ def get_new_bank(opcode_list):
         if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
             return op.optional_arg
 
-    raise Exception('\n~~ Warning: Could not resolve new bank adress! ~~')
+    raise Exception('~~ Warning: Could not resolve new bank adress! ~~')
 
 
 def calculate_internal_address(pc, bank):
@@ -159,7 +158,11 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 split_dst = pc + u8_correction(split_dst) + 2
 
             if calculate_internal_address(split_dst, bank) not in visited_chunks and split_dst < 0x8000:
-                visit_que.append((split_dst, bank, stack.copy(), stack_balance))
+                if op.opcode in CALL_FAMILY:
+                    visit_que.append((split_dst, bank, [], 0))
+
+                else:
+                    visit_que.append((split_dst, bank, stack.copy(), stack_balance))
 
         if op.opcode in end_op:
             ending = True
