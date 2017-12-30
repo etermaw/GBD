@@ -199,7 +199,7 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
 
     chunk_end = calculate_internal_address(pc - 1, bank)
 
-    return Rang(chunk_start, chunk_end), chunk_opcodes, next_addr, bank, stack_balance, error_end
+    return Rang(chunk_start, chunk_end), Chunk(chunk_opcodes, error_end), next_addr, bank, stack_balance
 
 
 def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance, max_depth):
@@ -207,23 +207,19 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance,
 
     while depth < max_depth:
         if calculate_internal_address(pc, bank) not in visited_chunks:
-            chunk_range, op_list, pc, bank, stack_balance, error = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
+            chunk_range, chunk, pc, bank, stack_balance = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
             depth += 1
 
             if chunk_range.end in visited_chunks:
                 old = visited_chunks[chunk_range.end]
-                new = merge_chunks(op_list, old)
+                new = merge_chunks(chunk.opcodes, old.opcodes)
                 visited_chunks.remove(chunk_range.end)
-                visited_chunks.insert(Rang(new[0].address, new[-1].address), new)
+                visited_chunks.insert(Rang(new[0].address, new[-1].address), Chunk(new, old.end_warning))
 
             else:
-                visited_chunks.insert(chunk_range, op_list)
+                visited_chunks.insert(chunk_range, chunk)
 
-            if error is not None:
-                print(error)
-                break
-
-            elif pc is None:
+            if pc is None:
                 break
 
             elif pc >= 0x8000:
@@ -234,7 +230,8 @@ def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance,
             break
 
 
-def print_opcodes(opcode_list):
+def print_opcodes(chunk):
+    opcode_list = chunk.opcodes
     start_addr = opcode_list[0].address
     bank_str = '' if start_addr < 0x4000 else ' (BANK 0x{:X})'.format(get_bank_num(start_addr))
     fmt_str = '0x{0:X} {1}{2}'
@@ -259,6 +256,9 @@ def print_opcodes(opcode_list):
 
         else:
             print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00], warning))
+
+    if chunk.end_warning is not None:
+        print('### {} ###'.format(chunk.end_warning))
 
     print(footer)
 
