@@ -41,3 +41,12 @@ class Opcode:
 
     def __eq__(self, other):
         return self.address == other
+
+
+class Chunk:
+    opcodes = []
+    end_warning = None
+
+    def __init__(self, opcodes, warning):
+        self.opcodes = opcodes
+        self.end_warning = warning
