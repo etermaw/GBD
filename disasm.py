@@ -267,7 +267,7 @@ def main():
     if 2 <= len(sys.argv) <= 5:
         file_name = sys.argv[1]
         start_pc = int(sys.argv[2], 16) if len(sys.argv) >= 3 else 0x100
-        start_bank = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
+        start_bank = int(sys.argv[3], 16) if len(sys.argv) >= 4 else 1
         depth = int(sys.argv[4]) if len(sys.argv) == 5 else 999999999
 
         binary = []
@@ -285,7 +285,7 @@ def main():
             print_opcodes(chunks[i])
 
     else:
-        print("Args: <program name> <start pc [hex, default: 0x100]> <ROM bank [default 1]> <depth [default: inf]>")
+        print("Args: <program name> <start pc [hex, default: 0x100]> <ROM bank [hex, default 1]> <depth [default: inf]>")
 
 
 if __name__ == "__main__":
