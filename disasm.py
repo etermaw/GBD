@@ -238,7 +238,7 @@ def print_opcodes(chunk):
     header = '----- CHUNK 0x{0:X}{1} -----'.format(get_real_address(start_addr), bank_str)
     footer = '-' * len(header) + '\n'
 
-    warning_str = '\t\t[{}]'
+    warning_str = ' [{}]'
 
     print(header)
 
@@ -264,17 +264,15 @@ def print_opcodes(chunk):
 
 
 def main():
-    if len(sys.argv) not in (2, 3, 4):
-        print("Args: <program name> <start pc [hex, default: 0x100]> <depth [default: inf]>")
-
-    else:
+    if 2 <= len(sys.argv) <= 5:
         file_name = sys.argv[1]
         start_pc = int(sys.argv[2], 16) if len(sys.argv) >= 3 else 0x100
-        depth = int(sys.argv[3]) if len(sys.argv) == 4 else 999999999
+        start_bank = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
+        depth = int(sys.argv[4]) if len(sys.argv) == 5 else 999999999
 
         binary = []
         chunks = bintrees.RBTree()
-        visit_queue = [(start_pc, 1, [], 0)]  # (pc, bank, stack, stack_balance)
+        visit_queue = [(start_pc, start_bank, [], 0)]  # (pc, bank, stack, stack_balance)
 
         with open(file_name, 'rb') as file:
             binary = file.read()
@@ -285,6 +283,9 @@ def main():
 
         for i in chunks:
             print_opcodes(chunks[i])
+
+    else:
+        print("Args: <program name> <start pc [hex, default: 0x100]> <ROM bank [default 1]> <depth [default: inf]>")
 
 
 if __name__ == "__main__":
