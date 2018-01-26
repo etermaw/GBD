@@ -263,25 +263,30 @@ def print_opcodes(chunk):
     print(footer)
 
 
-if len(sys.argv) not in (2, 3, 4):
-    print("Args: <program name> <start pc [hex, default: 0x100]> <depth [default: inf]>")
+def main():
+    if len(sys.argv) not in (2, 3, 4):
+        print("Args: <program name> <start pc [hex, default: 0x100]> <depth [default: inf]>")
 
-else:
-    file_name = sys.argv[1]
-    start_pc = int(sys.argv[2], 16) if len(sys.argv) >= 3 else 0x100
-    depth = int(sys.argv[3]) if len(sys.argv) == 4 else 999999999
+    else:
+        file_name = sys.argv[1]
+        start_pc = int(sys.argv[2], 16) if len(sys.argv) >= 3 else 0x100
+        depth = int(sys.argv[3]) if len(sys.argv) == 4 else 999999999
 
-    binary = []
-    chunks = bintrees.RBTree()
-    visit_queue = [(start_pc, 1, [], 0)]  # (pc, bank, stack, stack_balance)
+        binary = []
+        chunks = bintrees.RBTree()
+        visit_queue = [(start_pc, 1, [], 0)]  # (pc, bank, stack, stack_balance)
 
-    with open(file_name, 'rb') as file:
-        binary = file.read()
+        with open(file_name, 'rb') as file:
+            binary = file.read()
 
-    while len(visit_queue) > 0:
-        next_path = visit_queue.pop()
-        follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], depth)
+        while len(visit_queue) > 0:
+            next_path = visit_queue.pop()
+            follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], depth)
 
-    for i in chunks:
-        print_opcodes(chunks[i])
+        for i in chunks:
+            print_opcodes(chunks[i])
+
+
+if __name__ == "__main__":
+    main()
 

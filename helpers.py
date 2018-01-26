@@ -8,7 +8,7 @@ class Rang:
         self.end = end
 
     def __eq__(self, other):
-        return other >= self.start and other <= self.end
+        return self.start <= other <= self.end
 
     def __lt__(self, other):
         return self.start < other
