@@ -44,7 +44,7 @@ def get_new_bank(opcode_list):
         if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
             return op.optional_arg
 
-    raise Exception('~~ Warning: Could not resolve new bank adress! ~~')
+    raise Exception('Could not resolve new bank adress!')
 
 
 def calculate_internal_address(pc, bank):
@@ -263,17 +263,25 @@ def print_opcodes(chunk):
     print(footer)
 
 
-binary = []
-chunks = bintrees.RBTree()
-visit_queue = [(int(sys.argv[2], 16), 1, [], 0)]  # (pc, bank, stack, stack_balance)
+if len(sys.argv) not in (2, 3, 4):
+    print("Args: <program name> <start pc [hex, default: 0x100]> <depth [default: inf]>")
 
-with open(sys.argv[1], 'rb') as file:
-    binary = file.read()
+else:
+    file_name = sys.argv[1]
+    start_pc = int(sys.argv[2], 16) if len(sys.argv) >= 3 else 0x100
+    depth = int(sys.argv[3]) if len(sys.argv) == 4 else 999999999
 
-while len(visit_queue) > 0:
-    next_path = visit_queue.pop()
-    follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], int(sys.argv[3]))
+    binary = []
+    chunks = bintrees.RBTree()
+    visit_queue = [(start_pc, 1, [], 0)]  # (pc, bank, stack, stack_balance)
 
-for i in chunks:
-    print_opcodes(chunks[i])
+    with open(file_name, 'rb') as file:
+        binary = file.read()
+
+    while len(visit_queue) > 0:
+        next_path = visit_queue.pop()
+        follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], depth)
+
+    for i in chunks:
+        print_opcodes(chunks[i])
 
