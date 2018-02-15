@@ -121,7 +121,7 @@ def get_single_op(pc, data, bank):
     return Opcode(calculate_internal_address(pc, bank), opcode, optional_arg, op_length)
 
 
-def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
+def get_chunk(pc, data, bank, stack_balance, visit_que, visited_chunks):
     chunk_start = calculate_internal_address(pc, bank)
     ending = False
     chunk_opcodes = []
@@ -165,10 +165,10 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
 
             if calculate_internal_address(split_dst, bank) not in visited_chunks and split_dst < 0x8000:
                 if op.opcode in CALL_RST_FAMILY:
-                    visit_que.append((split_dst, bank, [], 0))
+                    visit_que.append((split_dst, bank, 0))
 
                 else:
-                    visit_que.append((split_dst, bank, stack.copy(), stack_balance))
+                    visit_que.append((split_dst, bank, stack_balance))
 
         if op.opcode in end_op:
             ending = True
@@ -193,9 +193,6 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
                 elif stack_balance > 0:
                     error_end = 'Detected stack manipulation: chunk pushes new return address!'
 
-                elif len(stack) > 0:
-                    next_addr, stack_balance = stack.pop()
-
         pc += op.opcode_len
 
     chunk_end = calculate_internal_address(pc - 1, bank)
@@ -203,12 +200,12 @@ def get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks):
     return Rang(chunk_start, chunk_end), Chunk(chunk_opcodes, error_end), next_addr, bank, stack_balance
 
 
-def follow_path(data, pc, bank, visited_chunks, visit_que, stack, stack_balance, max_depth):
+def follow_path(data, pc, bank, visited_chunks, visit_que, stack_balance, max_depth):
     depth = 0
 
     while depth < max_depth:
         if calculate_internal_address(pc, bank) not in visited_chunks:
-            chunk_range, chunk, pc, bank, stack_balance = get_chunk(pc, data, bank, stack, stack_balance, visit_que, visited_chunks)
+            chunk_range, chunk, pc, bank, stack_balance = get_chunk(pc, data, bank, stack_balance, visit_que, visited_chunks)
             depth += 1
 
             if chunk_range.end in visited_chunks:
@@ -278,14 +275,14 @@ def main():
 
         binary = []
         chunks = bintrees.RBTree()
-        visit_queue = [(start_pc, start_bank, [], 0)]  # (pc, bank, stack, stack_balance)
+        visit_queue = [(start_pc, start_bank, 0)]  # (pc, bank, stack_balance)
 
         with open(file_name, 'rb') as file:
             binary = file.read()
 
         while len(visit_queue) > 0:
             next_path = visit_queue.pop()
-            follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], next_path[3], depth)
+            follow_path(binary, next_path[0], next_path[1], chunks, visit_queue, next_path[2], depth)
 
         for i in chunks:
             print_opcodes(chunks[i])
