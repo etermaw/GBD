@@ -1,5 +1,6 @@
 import sys
 import bintrees
+import colorama
 from opcodes import *
 from helpers import *
 
@@ -243,8 +244,13 @@ def print_opcodes(chunk):
     print(header)
 
     for op in opcode_list:
-        warning = warning_str.format(op.warning) if op.warning is not None else ''
         real_address = get_real_address(op.address)
+        warning = ''
+        color = ''
+
+        if op.warning is not None:
+            warning = warning_str.format(op.warning)
+            color = colorama.Fore.YELLOW
 
         if op.opcode <= 0xFF:
             tmp_op = opcodes[op.opcode]
@@ -252,13 +258,13 @@ def print_opcodes(chunk):
             if op.optional_arg is not None:
                 tmp_op = tmp_op.format(op.optional_arg)
 
-            print(fmt_str.format(real_address, tmp_op, warning))
+            print(color + fmt_str.format(real_address, tmp_op, warning))
 
         else:
-            print(fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00], warning))
+            print(color + fmt_str.format(real_address, ext_opcodes[op.opcode - 0xCB00], warning))
 
     if chunk.end_warning is not None:
-        print('### {} ###'.format(chunk.end_warning))
+        print(colorama.Fore.RED + '### {} ###'.format(chunk.end_warning))
 
     print(footer)
 
@@ -289,5 +295,6 @@ def main():
 
 
 if __name__ == "__main__":
+    colorama.init(autoreset=True, convert=False, strip=False)  # remove last 2 args if not using PyCharm
     main()
-
+    colorama.deinit()
