@@ -1,9 +1,21 @@
+def mbc_mapper(bank_num):
+    if bank_num & 0x1F == 0:
+        bank_num |= 0x1
+
+    return bank_num
+
+
+def mbc5_mapper(bank_num):
+    return bank_num
 
 
 def get_new_bank(opcode_list):
     for op in reversed(opcode_list):
         if op.opcode == 0x3E:  # if opcode == 'LD A,(0x0 ~ 0xFF)'
-            return op.optional_arg
+            return mbc_mapper(op.optional_arg)
+
+        elif op.opcode == 0xAF:  # opcode == XOR A,A
+            return mbc_mapper(0)
 
     raise Exception('Could not resolve new bank adress!')
 
