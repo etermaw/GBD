@@ -1,3 +1,10 @@
+A_MODS = {0xA, 0x1A, 0x2A, 0x3A, 0xF0, 0xF1, 0xF2, 0xC6, 0xD6, 0xE6, 0xF6, 0xFA, 0xCE, 0xDE, 0xEE} | \
+         set(range(0x77, 0xB8)) | set([0xCB07 + x*0x10 for x in range(0, 0x10)]) | \
+         set([0xCB0F + x*0x10 for x in range(0, 0x10)])
+
+HL_MODS = {}
+
+
 def mbc_mapper(bank_num):
     if bank_num & 0x1F == 0:
         bank_num |= 0x1
@@ -16,6 +23,10 @@ def get_new_bank(opcode_list):
 
         elif op.opcode == 0xAF:  # opcode == XOR A,A
             return mbc_mapper(0)
+
+        elif op.opcode in A_MODS:  # register A got modified, abort dispatching
+            op.warning = 'Bank resolving stopped here'  # TODO: add op.info
+            break
 
     raise Exception('Could not resolve new bank adress!')
 
