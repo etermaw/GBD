@@ -25,7 +25,7 @@ def get_new_bank(opcode_list):
             return mbc_mapper(0)
 
         elif op.opcode in A_MODS:  # register A got modified, abort dispatching
-            op.warning = 'Bank resolving stopped here'  # TODO: add op.info
+            op.warning = 'Bank resolving aborted here'
             break
 
     raise Exception('Could not resolve new bank adress!')

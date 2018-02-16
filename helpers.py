@@ -32,6 +32,7 @@ class Opcode:
     optional_arg = 0
     opcode_len = 0
     warning = None
+    info = None
 
     def __init__(self, address, opcode, optional_arg, opcode_len):
         self.address = address

@@ -31,6 +31,10 @@ def print_opcodes(chunk):
             warning = warning_str.format(op.warning)
             color = colorama.Fore.YELLOW
 
+        elif op.info is not None:
+            warning = warning_str.format(op.info)
+            color = colorama.Fore.GREEN
+
         if op.opcode <= 0xFF:
             tmp_op = opcodes[op.opcode]
 
