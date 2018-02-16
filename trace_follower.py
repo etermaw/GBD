@@ -164,6 +164,9 @@ class TraceFollower:
 
         chunk_end = calculate_internal_address(pc - 1, bank)
 
+        if next_addr is not None and next_addr >= 0x8000:
+            error_end = 'Dynamic Execution: program go out of ROM!'
+
         return Rang(chunk_start, chunk_end), Chunk(chunk_opcodes, error_end), next_addr, bank, stack_balance
 
     def follow_path(self, pc, bank, stack_balance, max_depth):
@@ -184,11 +187,7 @@ class TraceFollower:
                 else:
                     self.chunk_cache.insert(chunk_range, chunk)
 
-                if pc is None:
-                    break
-
-                elif pc >= 0x8000:
-                    print('Dynamic Execution: program go out of ROM!\n')
+                if pc is None or pc >= 0x8000:
                     break
 
             else:
