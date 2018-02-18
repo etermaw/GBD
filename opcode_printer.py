@@ -18,6 +18,14 @@ HW_REGISTERS = {0x00: "JOYP", 0x01: "SB", 0x02: "SC", 0x04: "DIV",
                 0x73: "UNKNOWN3", 0x74: "UNKNOWN4", 0x75: "UNKNOWN5", 0x76: "UNKNOWN6",
                 0x77: "UNKNOWN7", 0xff: "IE"}
 
+JR_COND_FAMILY = {0x20, 0x28, 0x30, 0x38}
+
+def u8_correction(value):
+    if value > 127:
+        value -= 256
+
+    return value
+
 
 def get_real_address(internal_address):
     return internal_address & 0xFFFF
@@ -56,6 +64,10 @@ def print_opcodes(chunk):
             if op.opcode in (0xE0, 0xF0) and op.optional_arg in HW_REGISTERS:
                 warning = warning_str.format(HW_REGISTERS[op.optional_arg])
                 color = colorama.Fore.CYAN
+
+            elif op.opcode in JR_COND_FAMILY:
+                warning = warning_str.format(hex(get_real_address(op.address) + u8_correction(op.optional_arg) + 2))
+                color = colorama.Fore.GREEN
 
             tmp_op = opcodes[op.opcode]
 
