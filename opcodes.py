@@ -86,7 +86,7 @@ opcodes = ["NOP", "LD BC,0x{0:X}", "LD (BC),A", "INC BC",
            "RET C", "RETI", "JP C,0x{0:X}", "NONE",
            "CALL C,0x{0:X}", "NONE", "SBC A,0x{0:X}", "RST 18H",
 
-           "LDH (0x{0:X}), A", "POP HL", "LD (C),A", "NONE",
+           "LDH (0x{0:X}),A", "POP HL", "LD (C),A", "NONE",
            "NONE", "PUSH HL", "AND 0x{0:X}", "RST 20H",
            "ADD SP,0x{0:X}", "JP (HL)", "LD (0x{0:X}),A", "NONE",
            "NONE", "NONE", "XOR 0x{0:X}", "RST 28H",
