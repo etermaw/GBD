@@ -43,22 +43,22 @@ def get_hl_mod(opcode_list):
 
     for op in reversed(opcode_list):
         if op.opcode == 0x21:  # if opcode == 'LD HL,(0x0000 ~ 0xFFFF)'
-            return op.optional_arg
+            return None, op.optional_arg
 
         elif op.opcode == 0x26 and hval is not None:  # if opcode == 'LD H,(0x0 ~ 0xFF)'
             hval = op.optional_arg
 
             if lval is not None:
-                return (hval << 8) | lval
+                return None, (hval << 8) | lval
 
         elif op.opcode == 0x2E and lval is not None:  # if opcode == 'LD L,(0x0 ~ 0xFF)'
             lval = op.optional_arg
 
             if hval is not None:
-                return (hval << 8) | lval
+                return None, (hval << 8) | lval
 
         elif op.opcode in HL_MODS:
             op.warning = 'HL resolving aborted here'
             break
 
-    raise Exception('Could not resolve HL value!')
+    return 'Could not resolve HL value!', None

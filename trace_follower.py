@@ -151,11 +151,7 @@ class TraceFollower:
                         next_addr = pc + u8_correction(next_addr) + 2  # JR length is always 2
 
                 elif op.opcode == 0xE9:
-                    try:
-                        next_addr = get_hl_mod(chunk_opcodes)
-
-                    except Exception as e:
-                        error_end = e.args[0]
+                    error_end, next_addr = get_hl_mod(chunk_opcodes)
 
                 else:
                     if stack_balance < 0:
