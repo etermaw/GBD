@@ -94,16 +94,15 @@ class TraceFollower:
 
     def get_chunk(self, pc, bank, stack_balance):
         chunk_start = calculate_internal_address(pc, bank)
-        ending = False
         chunk_opcodes = []
         next_addr = None
         error_end = None
 
-        while not ending:
-            op = self.get_single_op(pc, bank)
-            chunk_opcodes.append(op)
-            pc += op.opcode_len
+        op = self.get_single_op(pc, bank)
+        chunk_opcodes.append(op)
+        pc += op.opcode_len
 
+        while op.opcode not in end_op:
             # if LD A, (0x2000 ~ 0x3FFF) [change bank command]
             if op.opcode == 0xEA and 0x2000 <= op.optional_arg <= 0x3FFF:
                 try:
@@ -124,7 +123,7 @@ class TraceFollower:
 
                 stack_balance -= 1
 
-            if op.opcode in split_op:
+            elif op.opcode in split_op:
                 split_dst = op.optional_arg
 
                 if op.opcode in JR_COND_FAMILY:
@@ -140,24 +139,25 @@ class TraceFollower:
                     else:
                         self.visit_queue.append((split_dst, bank, stack_balance))
 
-            if op.opcode in end_op:
-                ending = True
+            op = self.get_single_op(pc, bank)
+            chunk_opcodes.append(op)
+            pc += op.opcode_len
 
-                if op.opcode in JUMP_FAMILY:
-                    next_addr = op.optional_arg
+        if op.opcode in JUMP_FAMILY:
+            next_addr = op.optional_arg
 
-                    if op.opcode == 0x18:
-                        next_addr = pc + u8_correction(next_addr)
+            if op.opcode == 0x18:
+                next_addr = pc + u8_correction(next_addr)
 
-                elif op.opcode == 0xE9:
-                    error_end, next_addr = get_hl_mod(chunk_opcodes)
+        elif op.opcode == 0xE9:
+            error_end, next_addr = get_hl_mod(chunk_opcodes)
 
-                else:
-                    if stack_balance < 0:
-                        error_end = 'Detected stack manipulation: chunk pops return address!'
+        else:
+            if stack_balance < 0:
+                error_end = 'Detected stack manipulation: chunk pops return address!'
 
-                    elif stack_balance > 0:
-                        error_end = 'Detected stack manipulation: chunk pushes new return address!'
+            elif stack_balance > 0:
+                error_end = 'Detected stack manipulation: chunk pushes new return address!'
 
         chunk_end = calculate_internal_address(pc - 1, bank)
 
