@@ -101,17 +101,16 @@ class TraceFollower:
 
         while not ending:
             op = self.get_single_op(pc, bank)
+            chunk_opcodes.append(op)
+            pc += op.opcode_len
 
             # if LD A, (0x2000 ~ 0x3FFF) [change bank command]
             if op.opcode == 0xEA and 0x2000 <= op.optional_arg <= 0x3FFF:
                 try:
-                    new_bank = get_new_bank(chunk_opcodes)
-                    bank = new_bank
+                    bank = get_new_bank(chunk_opcodes)
 
                 except Exception as e:
                     op.warning = e.args[0]
-
-            chunk_opcodes.append(op)
 
             if op.opcode in PUSH_FAMILY:
                 if stack_balance < 0:
@@ -129,7 +128,7 @@ class TraceFollower:
                 split_dst = op.optional_arg
 
                 if op.opcode in JR_COND_FAMILY:
-                    split_dst = pc + u8_correction(split_dst) + 2
+                    split_dst = pc + u8_correction(split_dst)
 
                 elif op.opcode in RST_FAMILY:
                     split_dst = ((op.opcode >> 3) & 7) * 0x8
@@ -148,7 +147,7 @@ class TraceFollower:
                     next_addr = op.optional_arg
 
                     if op.opcode == 0x18:
-                        next_addr = pc + u8_correction(next_addr) + 2  # JR length is always 2
+                        next_addr = pc + u8_correction(next_addr)
 
                 elif op.opcode == 0xE9:
                     error_end, next_addr = get_hl_mod(chunk_opcodes)
@@ -159,8 +158,6 @@ class TraceFollower:
 
                     elif stack_balance > 0:
                         error_end = 'Detected stack manipulation: chunk pushes new return address!'
-
-            pc += op.opcode_len
 
         chunk_end = calculate_internal_address(pc - 1, bank)
 
