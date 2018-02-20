@@ -20,6 +20,7 @@ HW_REGISTERS = {0x00: "JOYP", 0x01: "SB", 0x02: "SC", 0x04: "DIV",
 
 JR_COND_FAMILY = {0x20, 0x28, 0x30, 0x38}
 
+
 def u8_correction(value):
     if value > 127:
         value -= 256

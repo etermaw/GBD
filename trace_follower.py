@@ -55,6 +55,10 @@ def merge_chunks(chunk1, chunk2):
         return chunk1
 
 
+def is_valid_pc(pc):
+    return (pc is not None) and (pc < 0x8000)
+
+
 class TraceFollower:
     program = []
     visit_queue = []
@@ -132,7 +136,7 @@ class TraceFollower:
 
                 if calculate_internal_address(split_dst, bank) not in self.chunk_cache and split_dst < 0x8000:
                     if op.opcode in CALL_RST_FAMILY:
-                        self.visit_queue.append((split_dst, bank, 0))
+                        self.visit_queue.append((split_dst, bank, 0))  # TODO: suspend current path, trace this function
 
                     else:
                         self.visit_queue.append((split_dst, bank, stack_balance))
@@ -169,33 +173,24 @@ class TraceFollower:
 
         return Rang(chunk_start, chunk_end), Chunk(chunk_opcodes, error_end), next_addr, bank, stack_balance
 
-    def follow_path(self, pc, bank, stack_balance, max_depth):
-        depth = 0
-
-        while depth < max_depth:
+    def follow_path(self, pc, bank, stack_balance):
+        while is_valid_pc(pc) and calculate_internal_address(pc, bank) not in self.chunk_cache:
             if calculate_internal_address(pc, bank) not in self.chunk_cache:
                 chunk_range, chunk, pc, bank, stack_balance = self.get_chunk(pc, bank, stack_balance)
-                depth += 1
 
                 if chunk_range.end in self.chunk_cache:
                     old = self.chunk_cache[chunk_range.end]
                     new = merge_chunks(chunk.opcodes, old.opcodes)
 
                     self.chunk_cache.remove(chunk_range.end)
-                    self.chunk_cache.insert(Rang(new[0].address, new[-1].address), Chunk(new, old.end_warning))
+                    chunk_range = Rang(new[0].address, new[-1].address)
+                    chunk = Chunk(new, old.end_warning)
 
-                else:
-                    self.chunk_cache.insert(chunk_range, chunk)
+                self.chunk_cache.insert(chunk_range, chunk)
 
-                if pc is None or pc >= 0x8000:
-                    break
-
-            else:
-                break
-
-    def trace_all_paths(self, start_pc, start_bank, max_depth):
+    def trace_all_paths(self, start_pc, start_bank):
         self.visit_queue.append((start_pc, start_bank, 0))
 
         while len(self.visit_queue) > 0:
             next_path = self.visit_queue.pop()
-            self.follow_path(next_path[0], next_path[1], next_path[2], max_depth)
+            self.follow_path(next_path[0], next_path[1], next_path[2])
