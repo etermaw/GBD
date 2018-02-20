@@ -76,8 +76,8 @@ class TraceFollower:
 
     def get_single_op(self, pc, bank):
         opcode = self.get_byte(pc, bank)
-        optional_arg = None
         op_length = op_len[opcode]
+        optional_arg = None
 
         if opcode == 0xCB:
             opcode = 0xCB00 + self.get_byte(pc + 1, bank)
@@ -159,10 +159,10 @@ class TraceFollower:
             elif stack_balance > 0:
                 error_end = 'Detected stack manipulation: chunk pushes new return address!'
 
-        chunk_end = calculate_internal_address(pc - 1, bank)
-
         if next_addr is not None and next_addr >= 0x8000:
             error_end = 'Dynamic Execution: program go out of ROM!'
+
+        chunk_end = calculate_internal_address(pc - 1, bank)
 
         return Rang(chunk_start, chunk_end), Chunk(chunk_opcodes, error_end), next_addr, bank, stack_balance
 
